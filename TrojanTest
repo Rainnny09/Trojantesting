@@ -57,13 +57,7 @@ else
     DISPLAY_NAME="Trojan-WS"
 fi
 
-# --- 5. Install qrencode ---
-if ! command -v qrencode &> /dev/null; then
-    echo "📦 Installing QR generator..."
-    sudo apt-get update -y > /dev/null 2>&1 && sudo apt-get install -y qrencode > /dev/null 2>&1
-fi
-
-# --- 6. Deploy to Cloud Run ---
+# --- 5. Deploy to Cloud Run ---
 echo "⚙️ Deploying $DISPLAY_NAME Service: $SERVICE_NAME..."
 gcloud services enable run.googleapis.com --quiet > /dev/null 2>&1
 
@@ -79,12 +73,10 @@ gcloud run deploy "$SERVICE_NAME" \
     --min-instances=1 \
     --quiet
 
-# --- 7. Final Output ---
+# --- 6. Final Output ---
 echo -e "\n================================================"
 echo "✅ $DISPLAY_NAME DEPLOYMENT SUCCESSFUL"
 echo "================================================"
-echo "📱 QR CODE:"
-echo "$URI" | qrencode -t UTF8
-echo "------------------------------------------------"
-echo "🔗 IMPORT LINK: $URI"
+echo "🔗 IMPORT LINK:"
+echo "$URI"
 echo "================================================"
