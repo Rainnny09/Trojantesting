@@ -1,0 +1,91 @@
+#!/bin/bash
+set -e
+
+# --- DISPLAY BANNER ---
+cat << "EOF"
+################################################################################
+#
+#        ██████╗  █████╗ ███████╗███╗   ██╗
+#        ██╔══██╗██╔══██╗██╔════╝████╗  ██║
+#        ██████╔╝███████║█████╗  ██╔██╗ ██║
+#        ██╔══██╗██╔══██║██╔══╝  ██║╚██╗██║
+#        ██║  ██║██║  ██║███████╗██║ ╚████║
+#        ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝
+#
+#   DEVELOPER: RAEN
+#   PROJECT:   Automated Cloud Run Proxy
+#   VERSION:   1.2
+#
+################################################################################
+EOF
+
+# 1. Choose Protocol
+echo "🌐 Select Protocol:"
+echo "1) Trojan (WS)"
+echo "2) Vless (WS)"
+read -p "Selection [1-2, default 1]: " PROTO_INPUT </dev/tty
+
+# 2. Ask for Service Name
+echo "❓ Enter your desired Service Name (or press Enter for default):"
+read -p "> " USER_INPUT </dev/tty
+
+# Ensure SERVICE_NAME is not empty
+if [ -z "$USER_INPUT" ]; then
+    SERVICE_NAME="raenstsscript"
+else
+    SERVICE_NAME=$(echo "$USER_INPUT" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]//g')
+fi
+
+# 3. Environment Resources
+REGION="us-central1"
+CPU="2"
+MEMORY="1Gi"
+PROJECT_ID=$(gcloud config get-value project)
+PROJECT_NUM=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
+HOST="${SERVICE_NAME}-${PROJECT_NUM}.${REGION}.run.app"
+
+# 4. Protocol Configuration
+if [ "$PROTO_INPUT" == "2" ]; then
+    # VLESS CONFIG
+    IMAGE="docker.io/n4pro/vl:latest"
+    VLESS_UUID="0c890000-4733-b20e-067f-fc341bd20000"
+    URI="vless://${VLESS_UUID}@vpn.googleapis.com:443?path=%2FN4&security=tls&encryption=none&host=${HOST}&type=ws&sni=${HOST}#${SERVICE_NAME}-VLESS"
+    DISPLAY_NAME="VLESS-WS"
+else
+    # TROJAN CONFIG
+    IMAGE="docker.io/n4pro/tr:latest"
+    URI="trojan://Trojan-2025@vpn.googleapis.com:443?path=%2FN4&security=tls&type=ws&sni=${HOST}&host=${HOST}#${SERVICE_NAME}-Trojan"
+    DISPLAY_NAME="Trojan-WS"
+fi
+
+# 5. Install qrencode (QR Generator)
+if ! command -v qrencode &> /dev/null; then
+    echo "📦 Installing QR generator..."
+    sudo apt-get update -y > /dev/null 2>&1 && sudo apt-get install -y qrencode > /dev/null 2>&1
+fi
+
+# 6. Deploy to Cloud Run
+echo "⚙️ Deploying $DISPLAY_NAME Service: $SERVICE_NAME..."
+gcloud services enable run.googleapis.com --quiet > /dev/null 2>&1
+
+gcloud run deploy "$SERVICE_NAME" \
+    --image="$IMAGE" \
+    --platform=managed \
+    --region="$REGION" \
+    --cpu="$CPU" \
+    --memory="$MEMORY" \
+    --no-cpu-throttling \
+    --allow-unauthenticated \
+    --port=8080 \
+    --min-instances=1 \
+    --quiet
+
+# 7. Final Output
+echo -e "\n================================================"
+echo "✅ $DISPLAY_NAME DEPLOYMENT SUCCESSFUL"
+echo "================================================"
+echo "📱 QR CODE:"
+echo "$URI" | qrencode -t UTF8
+echo "------------------------------------------------"
+echo "🔗 IMPORT LINK: $URI"
+echo "================================================"
